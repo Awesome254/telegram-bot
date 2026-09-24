@@ -186,7 +186,9 @@ src/
 
 ## Development checks
 
-Run `npm run typecheck` for a no-emit TypeScript check, `npm test` for the build and notification-format tests (including deterministic fuzz cases), or `npm run build` to produce the production output.
+Run `npm run typecheck` for a no-emit TypeScript check, `npm test` for the build plus the deterministic format and fixture suites, or `npm run build` to produce the production output.
+
+Contributor workflow for credential-free fixtures (event catalogs, cursor samples, failure-mode expectations) lives in [docs/contributor-fixtures.md](docs/contributor-fixtures.md). Automated tests never require live Testnet RPC access, Telegram credentials, or signing keys.
 
 ## License
 

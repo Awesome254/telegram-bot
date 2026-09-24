@@ -14,8 +14,9 @@
     "start": "node dist/index.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node --test tests/format.test.mjs",
-    "scan": "tsx src/stellar/events.ts"
+    "test": "npm run build && node --test tests/format.test.mjs tests/seed-cursor.test.mjs",
+    "scan": "tsx src/stellar/events.ts",
+    "seed:cursor": "tsx src/dev/seedCursor.ts"
   },
   "dependencies": {
     "@stellar/stellar-sdk": "^16.2.0",

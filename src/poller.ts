@@ -26,6 +26,7 @@ import type { BotConfig } from "./config.js";
 import { formatEvent } from "./notifications/format.js";
 import { readContractEvents, type WatchTarget } from "./stellar/events.js";
 import type { ContractSource, DecodedEvent } from "./stellar/decode.js";
+import { redactError } from "./redact.js";
 
 export interface TargetState {
   source: ContractSource;
@@ -80,7 +81,7 @@ const MAX_BACKOFF_MS = 10_000;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function errMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  return redactError(err);
 }
 
 /**

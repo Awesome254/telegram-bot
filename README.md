@@ -196,12 +196,23 @@ cursor format or Telegram behaviour.
 exits via the listen error path after logging). Client disconnects and probe
 errors are logged and ignored so they cannot stop the notifier.
 
+## Redaction
+
+Logs, `/status`, and `GET /health` run through `src/redact.ts` so bot tokens,
+Stellar secret-key strkeys, payment-proof blobs, and oversized remote payloads
+never appear in operator output. Shape-based scrubbing covers Telegram URL
+embeds even when a value was not registered; boot also registers `BOT_TOKEN`
+and `TELEGRAM_CHAT_ID`. Cursor format and chain semantics are unchanged.
+
+**Rollback:** redeploy the previous image — redaction is additive. No env keys.
+
 ## Layout
 
 ```
 src/
   index.ts                 entry point: config -> RPC -> bot -> poller -> health HTTP
   health.ts                local loopback GET /health for supervisors
+  redact.ts                shared secret scrubbing for logs / health / status
   config.ts                env loading and validation, fails fast
   bot.ts                   grammy setup: /start, /help, /status
   poller.ts                the loop: scan, notify, persist the cursor
@@ -215,7 +226,7 @@ src/
 
 ## Development checks
 
-Run `npm run typecheck` for a no-emit TypeScript check, `npm test` for the build plus the deterministic format and fixture suites, or `npm run build` to produce the production output.
+Run `npm run typecheck` for a no-emit TypeScript check, `npm test` for the build plus the deterministic format, health, and redaction regression suites, or `npm run build` to produce the production output.
 
 Contributor workflow for credential-free fixtures (event catalogs, cursor samples, failure-mode expectations) lives in [docs/contributor-fixtures.md](docs/contributor-fixtures.md). Automated tests never require live Testnet RPC access, Telegram credentials, or signing keys.
 

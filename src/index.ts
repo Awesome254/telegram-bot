@@ -6,10 +6,11 @@
  * is to still be running next week.
  */
 
-import { ConfigError, loadConfig, networkLabel } from "./config.js";
+import { ConfigError, activeProfileName, loadConfig, networkLabel } from "./config.js";
 import { createBot, createNotifier, registerCommands } from "./bot.js";
 import { startHealthServer } from "./health.js";
 import { createPoller } from "./poller.js";
+import { safeErrorMessage } from "./notifications/format.js";
 import { createRpcServer } from "./stellar/client.js";
 import { redactError, registerSecrets } from "./redact.js";
 
@@ -22,12 +23,14 @@ function installProcessHandlers(): void {
   // notifying. Log it and let the poll loop carry on.
   process.on("unhandledRejection", (reason) => {
     console.error("[error] unhandled rejection:", redactError(reason));
+    console.error(`[error] unhandled rejection: ${safeErrorMessage(reason)}`);
   });
 
   // An uncaught exception means state is unknown; exit so the supervisor
   // restarts us. The persisted cursor is what makes that cheap.
   process.on("uncaughtException", (err) => {
     console.error("[fatal] uncaught exception, exiting for restart:", redactError(err));
+    console.error(`[fatal] uncaught exception, exiting for restart: ${safeErrorMessage(err)}`);
     process.exit(1);
   });
 }
@@ -39,12 +42,28 @@ async function main(): Promise<void> {
   // Never let token / chat id leak via error URLs or stack text.
   registerSecrets([config.botToken, config.chatId]);
 
+  // The mock profile exists for the dry-run entry, not this one: warn loudly
+  // so a profile left set in a deployment is noticed before Telegram rejects
+  // the placeholder token.
+  const profile = activeProfileName();
+  if (profile !== null) {
+    console.warn(
+      `[boot] MIMIR_PROFILE=${profile} is set: this entry still talks to real Telegram; ` +
+        `use "npm run mock:poll" for a credential-free dry run`,
+    );
+  }
+
   console.log(`[boot] Mimir Telegram notifier`);
   console.log(`[boot] network      ${networkLabel(config)} (${config.rpcUrl})`);
   console.log(`[boot] market       ${config.marketContractId}`);
   console.log(`[boot] squad        ${config.squadContractId}`);
-  console.log(`[boot] chat         ${config.chatId}`);
   console.log(`[boot] cursor file  ${config.cursorFile}`);
+  console.log(
+    `[boot] operator      ${config.operatorTelegramUserId === null ? "disabled" : "configured"}`,
+  );
+  console.log(
+    `[boot] preview mode  ${config.channelPreviewMode ? "enabled" : "disabled"}`,
+  );
 
   const server = createRpcServer(config);
 
@@ -63,7 +82,12 @@ async function main(): Promise<void> {
   };
 
   const poller = createPoller({ config, server, send: (text) => notify(text) });
-  const bot = createBot({ config, status: () => poller.status() });
+  const bot = createBot({
+    config,
+    status: () => poller.status(),
+    pause: () => poller.pause(),
+    resume: () => poller.resume(),
+  });
   notify = createNotifier(bot, config);
 
   // Local-only health HTTP for supervisors. Starts before Telegram long-poll
@@ -81,6 +105,10 @@ async function main(): Promise<void> {
     })
     .catch((err: unknown) => {
       console.error("[fatal] telegram long-polling failed — check BOT_TOKEN:", redactError(err));
+      console.error(
+        `[fatal] telegram long-polling failed — check BOT_TOKEN: ` +
+          safeErrorMessage(err, [config.botToken]),
+      );
       process.exit(1);
     });
 
@@ -92,7 +120,7 @@ async function main(): Promise<void> {
     void healthServer
       .close()
       .catch((err: unknown) => {
-        console.error(`[shutdown] health server close failed:`, err);
+        console.error(`[shutdown] health server close failed: ${safeErrorMessage(err)}`);
       })
       .finally(() => {
         void bot.stop().finally(() => process.exit(0));
@@ -109,5 +137,6 @@ main().catch((err: unknown) => {
     process.exit(1);
   }
   console.error("[boot] startup failed:", redactError(err));
+  console.error(`[boot] startup failed: ${safeErrorMessage(err)}`);
   process.exit(1);
 });
